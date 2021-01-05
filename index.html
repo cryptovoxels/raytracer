@@ -1,0 +1,90 @@
+<html>
+
+<head>
+  <h1>RayTracer.js - Example 1
+    <br>Simple Scene [640x480]</h1>
+
+  <input id="startButtonId" type="button" value="Start Rendering" />
+
+  <br>
+  <br>
+
+  <canvas id="resultCanvas" style="width: 640px; height: 480px" width="320" height="240"></canvas>
+
+  <br>
+  <br>
+
+  <div id="resultDiv"></div>
+</head>
+
+<body>
+  <script>
+    const memory = new WebAssembly.Memory({ initial: 1000, max: 10000 });
+    const abort = (msg, file, line, column) => {
+      // msg and file are offsets of the respective strings in memory
+      // line and column are integers
+      throw Error("assertion failed"); // usually
+    }
+
+    // Fetch and instantiate the module
+    WebAssembly.instantiateStreaming(fetch("/build/untouched.wasm"), {
+      env: { memory, abort },
+      JSMath: Math,
+      console: {
+        debug(value) {
+          console.log('debug', value);
+        }
+      }
+    })
+      .then(module => {
+        console.log(module)
+
+        const exports = module.instance.exports;
+
+        // Fill input at [0, s-1] with random live cells
+        const mem = new Uint8ClampedArray(memory.buffer, 0, 320 * 240 * 4);
+
+        let ox = 0
+        let oy = 0
+        let oz = 0
+
+        // get canvas
+        const canvas = document.getElementById("resultCanvas");
+        const ctx = canvas.getContext('2d');
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+
+        exports.init(320, 240, ox, oy, oz)
+
+        function render () {
+          oz += 2
+
+          //        document.getElementById("startButtonId").onclick = function () {
+          const startTime = new Date();
+
+          try {
+            exports.trace(320, 240, ox, oy, oz)
+          } catch (e) {
+            console.error(e)
+          }
+          const totalDuration = (new Date() - startTime) / 1000;
+          document.getElementById("resultDiv").innerHTML = "Render completed! " + totalDuration + " seconds!";
+
+          const imageData = ctx.getImageData(0, 0, 320, 240);
+          imageData.data.set(mem);
+          // console.log(mem[0], mem[1], mem[2], mem[3], )
+          // console.log(mem[4], mem[5], mem[6], mem[7], )
+          // console.log(mem[8], mem[9], mem[10], mem[11], )
+          // console.log(mem.byteLength)
+          ctx.putImageData(imageData, 0, 0);
+
+          setTimeout(() => render(), 5)
+        //      };
+        }
+
+        render()
+      })
+  </script>
+</body>
+
+</html>
